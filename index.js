@@ -1,44 +1,60 @@
 const fs = require("fs");
 const path = require("path");
+const DB_FILE_PATH = path.join(__dirname, "db.txt");
 
-const dbPath = path.join(__dirname, "db.txt");
+const dbTextToJson = (text) => {
+  const formattedString = `[${text.trim().split("\n}\n{").join("},{")}]`;
+  return JSON.parse(formattedString);
+};
 
-function createTodoSync(title) {
-  const todo = {
-    id: generateId(),
+const JsonToDbText = (Json) => {
+  let text = "";
+  Json.forEach((todo) => {
+    text += JSON.stringify(todo, null, 2) + "\n";
+  });
+  return text;
+};
+
+const createTodoSync = (title) => {
+  const now = new Date().toISOString();
+  const newTodo = {
+    id: Date.now(),
     title,
     isCompleted: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: now,
+    updatedAt: now
   };
 
-  const todoString = JSON.stringify(todo, null, 2);
-  let current = "";
-  if (fs.existsSync(dbPath) && fs.readFileSync(dbPath, "utf8").trim().length > 0) {
-    current = "\n";
+  let todos = [];
+  if (fs.existsSync(DB_FILE_PATH)) {
+    const fileData = fs.readFileSync(DB_FILE_PATH, "utf-8").trim();
+    if (fileData) {
+      todos = dbTextToJson(fileData);
+    }
   }
-  fs.appendFileSync(dbPath, current + todoString);
-  return todo;
-}
 
-function getTodosSync() {
-  if (!fs.existsSync(dbPath)) return "";
-  return fs.readFileSync(dbPath, "utf8");
-}
+  todos.push(newTodo);
+  fs.writeFileSync(DB_FILE_PATH, JsonToDbText(todos));
+};
 
-function getTodoSync(id) {
-  if (!fs.existsSync(dbPath)) return "";
-  const todos = readTodos();
-  const todo = todos.find(t => t.id === id);
-  return todo ? JSON.stringify(todo, null, 2) : "";
-}
+const getTodosSync = () => {
+  if (!fs.existsSync(DB_FILE_PATH)) return "";
+  return fs.readFileSync(DB_FILE_PATH, "utf-8");
+};
 
-function updateTodoSync(id, updates) {
-  const todos = readTodos();
-  let found = false;
-  const updatedTodos = todos.map(todo => {
+const getTodoSync = (id) => {
+  if (!fs.existsSync(DB_FILE_PATH)) return null;
+  const data = dbTextToJson(fs.readFileSync(DB_FILE_PATH, "utf-8"));
+  const todo = data.find((item) => item.id === id);
+  return todo ? JSON.stringify(todo) : null;
+};
+
+const updateTodoSync = (id, updates) => {
+  if (!fs.existsSync(DB_FILE_PATH)) return;
+  let todos = dbTextToJson(fs.readFileSync(DB_FILE_PATH, "utf-8"));
+
+  todos = todos.map((todo) => {
     if (todo.id === id) {
-      found = true;
       return {
         ...todo,
         ...updates,
@@ -47,44 +63,13 @@ function updateTodoSync(id, updates) {
     }
     return todo;
   });
-  if (found) {
-    writeTodos(updatedTodos);
-  }
-}
 
-function deleteTodoSync(id) {
-  const todos = readTodos();
-  const filtered = todos.filter(t => t.id !== id);
-  writeTodos(filtered);
-}
+  fs.writeFileSync(DB_FILE_PATH, JsonToDbText(todos));
+};
 
-// Helpers
-function readTodos() {
-  if (!fs.existsSync(dbPath)) return [];
-  return fs
-    .readFileSync(dbPath, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map(line => JSON.parse(line));
-}
-
-function writeTodos(todos) {
-  const data = todos.map(t => JSON.stringify(t, null, 2)).join("\n");
-  fs.writeFileSync(dbPath, data);
-}
-
-function generateId() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0,
-      v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-module.exports = {
-  createTodoSync,
-  getTodosSync,
-  getTodoSync,
-  updateTodoSync,
-  deleteTodoSync
+const deleteTodoSync = (id) => {
+  if (!fs.existsSync(DB_FILE_PATH)) return;
+  let todos = dbTextToJson(fs.readFileSync(DB_FILE_PATH, "utf-8"));
+  todos = todos.filter((todo) => todo.id !== id);
+  fs.writeFileSync(DB_FILE_PATH, JsonToDbText(todos));
 };
